@@ -8,5 +8,12 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
-      - KEY=$KEY
+      - INFLUXDB_HOST=$INFLUXDB_HOST
+      - INFLUXDB_PORT=$INFLUXDB_PORT
+      - INFLUXDB_USER=$INFLUXDB_USER
+      - INFLUXDB_PASS=$INFLUXDB_PASS
+      - INFLUXDB_DB_NAME=$INFLUXDB_DB_NAME
+      - POWERFOX_API=$POWERFOX_API
+      - POWERFOX_USER=$POWERFOX_USER
+      - POWERFOX_PASSWORD=$POWERFOX_PASSWORD
     command: '/bin/sh -c "while sleep $UPDATE_INTERVAL; do python /app/powerfox2influxdb.py; done"'
