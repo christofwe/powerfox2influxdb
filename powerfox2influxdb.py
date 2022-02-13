@@ -5,7 +5,6 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-import time
 from datetime import datetime
 
 from influxdb import InfluxDBClient
@@ -29,8 +28,36 @@ local = datetime.now()
 timestamp = local.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 powerfox_headers = {'Content-Type': 'application/json'}
-powerfox_params = {'unit': 'kwh'}
+# powerfox_params = {'unit': 'kwh'}
 
-powerfox_response_current = requests.get(f"{POWERFOX_API}/current", params=powerfox_params, headers=powerfox_headers, auth=(POWERFOX_USER, POWERFOX_PASSWORD), verify=False)
+# powerfox_current = requests.get(f"{POWERFOX_API}/current", params=powerfox_params, headers=powerfox_headers, auth=(POWERFOX_USER, POWERFOX_PASSWORD), verify=False)
+try:
+  powerfox_current_response = requests.get(f"{POWERFOX_API}/current", headers=powerfox_headers, auth=(POWERFOX_USER, POWERFOX_PASSWORD), verify=False)
 
-print(f"{timestamp} powerfox_response_current: {powerfox_response_current}")
+  powerfox_current_response.raise_for_status()
+
+  powerfox_current = json.loads(powerfox_current_response.text)
+
+
+  values_current_watts = ["A_Plus","A_Minus", "Watt"]
+
+  json_body = []
+  for value_current_watt in values_current_watts:
+    item = {
+      "measurement": value_current_watt,
+      "tags": {
+      },
+      "time": datetime.utcfromtimestamp(powerfox_current['Timestamp']).strftime("%Y-%m-%dT%H:%M:%SZ"),
+      "fields": {
+        "watts": powerfox_current[value_current_watt]
+      }
+    }
+    json_body.append(item)
+
+
+  influxdb_write = influx_client.write_points(json_body)
+  print(f"{timestamp} influx_write: {influxdb_write}")
+
+except requests.exceptions.HTTPError as error:
+  print(f"powerfox_current error: {error}")
+  print(f"powerfox_current status_code: {powerfox_current_response.status_code}")
