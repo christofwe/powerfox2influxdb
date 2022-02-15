@@ -31,22 +31,17 @@ powerfox_headers = {'Content-Type': 'application/json'}
 powerfox_current_params = {"unit": "kwh"}
 powerfox_report_params = {"year": POWERFOX_REPORT_YEAR}
 
+values_current_kwh = ["A_Plus","A_Minus"]
+values_current_watt = ["Watt"]
+values_report_kwh = ["Consumption", "FeedIn"]
+
+json_body = []
+
 try:
   powerfox_current_response = requests.get(f"{POWERFOX_API}/main/current", headers=powerfox_headers, auth=(POWERFOX_USER, POWERFOX_PASSWORD), verify=False, params=powerfox_current_params)
-  powerfox_report_response = requests.get(f"{POWERFOX_API}/all/report", headers=powerfox_headers, auth=(POWERFOX_USER, POWERFOX_PASSWORD), verify=False, params=powerfox_report_params)
-
   powerfox_current_response.raise_for_status()
-  powerfox_report_response.raise_for_status()
-
   powerfox_current = powerfox_current_response.json()
-  powerfox_report = powerfox_report_response.json()
 
-
-  values_current_kwh = ["A_Plus","A_Minus"]
-  values_current_watt = ["Watt"]
-  values_report_kwh = ["Consumption", "FeedIn"]
-
-  json_body = []
   for value in values_current_kwh:
     item = {
       "measurement": value,
@@ -73,21 +68,26 @@ try:
     }
     json_body.append(item)
 
-  for value in values_report_kwh:
-    for rv in powerfox_report[value]['ReportValues']:
-      item = {
-        "measurement": value,
-        "tags": {
-          "type": "report"
-        },
-        "time": datetime.utcfromtimestamp(rv['Timestamp']).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "fields": {
-          "kwh": rv['Delta'],
-          "month": datetime.utcfromtimestamp(rv['Timestamp']).month,
-          "year": datetime.utcfromtimestamp(rv['Timestamp']).year
+  if local.day == 1 and local.hour == 6 and local.minute < 5:
+    powerfox_report_response = requests.get(f"{POWERFOX_API}/all/report", headers=powerfox_headers, auth=(POWERFOX_USER, POWERFOX_PASSWORD), verify=False, params=powerfox_report_params)
+    powerfox_report_response.raise_for_status()
+    powerfox_report = powerfox_report_response.json()
+
+    for value in values_report_kwh:
+      for rv in powerfox_report[value]['ReportValues']:
+        item = {
+          "measurement": value,
+          "tags": {
+            "type": "report"
+          },
+          "time": datetime.utcfromtimestamp(rv['Timestamp']).strftime("%Y-%m-%dT%H:%M:%SZ"),
+          "fields": {
+            "kwh": rv['Delta'],
+            "month": datetime.utcfromtimestamp(rv['Timestamp']).month,
+            "year": datetime.utcfromtimestamp(rv['Timestamp']).year
+          }
         }
-      }
-      json_body.append(item)
+        json_body.append(item)
 
   # print(f"{timestamp} json_body: {json_body}")
 
