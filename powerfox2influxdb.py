@@ -42,12 +42,12 @@ try:
   powerfox_report = powerfox_report_response.json()
 
 
-  values_current = ["A_Plus","A_Minus", "Watt"]
+  values_current_kwh = ["A_Plus","A_Minus"]
   values_current_watt = ["Watt"]
   values_report_kwh = ["Consumption", "FeedIn"]
 
   json_body = []
-  for value in values_current:
+  for value in values_current_kwh:
     item = {
       "measurement": value,
       "tags": {
