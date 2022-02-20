@@ -17,5 +17,6 @@ services:
       - POWERFOX_API=$POWERFOX_API
       - POWERFOX_USER=$POWERFOX_USER
       - POWERFOX_PASSWORD=$POWERFOX_PASSWORD
+      - POWERFOX_DEVICE_ID=$POWERFOX_DEVICE_ID
       - TZ=$TZ
     command: '/bin/sh -c "while sleep $UPDATE_INTERVAL; do python /app/powerfox2influxdb.py; done"'
