@@ -1,10 +1,11 @@
 import os
+
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
-
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-from datetime import datetime
+from datetime import datetime, timedelta
+import pytz
 
 from influxdb import InfluxDBClient
 
@@ -19,13 +20,14 @@ POWERFOX_API = os.environ['POWERFOX_API']
 POWERFOX_USER = os.environ['POWERFOX_USER']
 POWERFOX_PASSWORD = os.environ['POWERFOX_PASSWORD']
 
-# POWERFOX_API=https://backend.powerfox.energy/api/2.0/my
+
+tz = pytz.timezone(os.environ['TZ'])
+local = tz.localize(datetime.now())
+timestamp = local.strftime("%Y-%m-%dT%H:%M:%S%Z%z")
 
 influx_client = InfluxDBClient(host=INFLUXDB_HOST, port=INFLUXDB_PORT, username=INFLUXDB_USER, password=INFLUXDB_PASS)
 influx_client.switch_database(INFLUXDB_DB_NAME)
-
-local = datetime.now()
-timestamp = local.strftime("%Y-%m-%dT%H:%M:%SZ")
+influx_body = []
 
 powerfox_headers = {'Content-Type': 'application/json'}
 powerfox_current_params = {"unit": "kwh"}
@@ -35,12 +37,12 @@ values_current_kwh = ["A_Plus","A_Minus"]
 values_current_watt = ["Watt"]
 values_report_kwh = ["Consumption", "FeedIn"]
 
-json_body = []
 
 try:
   powerfox_current_response = requests.get(f"{POWERFOX_API}/main/current", headers=powerfox_headers, auth=(POWERFOX_USER, POWERFOX_PASSWORD), verify=False, params=powerfox_current_params)
   powerfox_current_response.raise_for_status()
   powerfox_current = powerfox_current_response.json()
+  timestamp_current = tz.localize(datetime.utcfromtimestamp(powerfox_current['Timestamp']))
 
   for value in values_current_kwh:
     item = {
@@ -48,12 +50,12 @@ try:
       "tags": {
         "type": "current"
       },
-      "time": datetime.utcfromtimestamp(powerfox_current['Timestamp']).strftime("%Y-%m-%dT%H:%M:%SZ"),
+      "time": timestamp_current.isoformat(),
       "fields": {
         "kwh": powerfox_current[value]
       }
     }
-    json_body.append(item)
+    influx_body.append(item)
 
   for value in values_current_watt:
     item = {
@@ -61,12 +63,12 @@ try:
       "tags": {
         "type": "current"
       },
-      "time": datetime.utcfromtimestamp(powerfox_current['Timestamp']).strftime("%Y-%m-%dT%H:%M:%SZ"),
+      "time": timestamp_current.isoformat(),
       "fields": {
         "watts": powerfox_current[value]
       }
     }
-    json_body.append(item)
+    influx_body.append(item)
 
   if local.day == 1 and local.hour == 6 and local.minute < 5:
     powerfox_report_response = requests.get(f"{POWERFOX_API}/all/report", headers=powerfox_headers, auth=(POWERFOX_USER, POWERFOX_PASSWORD), verify=False, params=powerfox_report_params)
@@ -75,23 +77,23 @@ try:
 
     for value in values_report_kwh:
       for rv in powerfox_report[value]['ReportValues']:
+        timestamp_rv = tz.localize(datetime.utcfromtimestamp(rv['Timestamp']))
         item = {
           "measurement": value,
           "tags": {
             "type": "report"
           },
-          "time": datetime.utcfromtimestamp(rv['Timestamp']).strftime("%Y-%m-%dT%H:%M:%SZ"),
+          "time": timestamp_rv.isoformat(),
           "fields": {
             "kwh": rv['Delta'],
             "month": datetime.utcfromtimestamp(rv['Timestamp']).month,
             "year": datetime.utcfromtimestamp(rv['Timestamp']).year
           }
         }
-        json_body.append(item)
+        influx_body.append(item)
 
-  # print(f"{timestamp} json_body: {json_body}")
 
-  influxdb_write = influx_client.write_points(json_body)
+  influxdb_write = influx_client.write_points(influx_body)
   print(f"{timestamp} influxdb_write: {influxdb_write}")
 
 except requests.exceptions.HTTPError as error:
